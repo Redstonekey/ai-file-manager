@@ -135,11 +135,18 @@ class FileManagerUI(QMainWindow):
             if widget:
                 widget.deleteLater()
 
-        # Create clickable breadcrumb parts
-        parts = path.split("/")
-        full_path = ""
+        # Split the path and create parts
+        parts = path.split('/')
+        current_path = ""
+        
         for idx, part in enumerate(parts):
-            full_path = os.path.join(full_path, part)
+            if not part:  # Skip empty parts
+                continue
+                
+            # Build the absolute path progressively
+            if idx == 0 and os.path.isabs(path):
+                current_path = "/"
+            current_path = os.path.join(current_path, part)
 
             # Create clickable label
             label = QLabel(part)
@@ -155,7 +162,10 @@ class FileManagerUI(QMainWindow):
                 }
             """)
             label.setCursor(QCursor(Qt.PointingHandCursor))
-            label.mousePressEvent = lambda event, p=full_path: self.logic.load_directory(p)
+            
+            # Use a local variable to store the path
+            path_for_click = os.path.abspath(current_path)
+            label.mousePressEvent = lambda _, p=path_for_click: self.logic.load_directory(p)
             self.breadcrumb_layout.addWidget(label)
 
             # Add separator if not the last part
