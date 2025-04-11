@@ -1,0 +1,238 @@
+from PyQt5.QtWidgets import (
+    QMainWindow, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QPushButton,
+    QLabel, QWidget, QSplitter, QFrame, QHeaderView, QMenu, QAction, QInputDialog, QMessageBox
+)
+from PyQt5.QtCore import Qt, QPoint, QSize
+from PyQt5.QtGui import QIcon
+from logic import FileManagerLogic
+import os
+
+
+class FileManagerUI(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("AI File Manager")
+        self.setGeometry(100, 100, 1024, 600)
+        self.setStyleSheet(self.load_styles())
+
+        # Initialize logic
+        self.logic = FileManagerLogic(self)
+
+        # Main layout
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.layout = QHBoxLayout(self.central_widget)
+
+        # Sidebar
+        self.sidebar = QFrame()
+        self.sidebar.setFixedWidth(200)
+        self.sidebar.setStyleSheet("background-color: #e0e0e0; border-radius: 8px;")
+        self.sidebar_layout = QVBoxLayout(self.sidebar)
+        self.sidebar_layout.setContentsMargins(10, 10, 10, 10)
+        self.sidebar_layout.setAlignment(Qt.AlignTop)  # Align buttons to the top
+
+        # Add buttons to sidebar
+        self.add_sidebar_button("Home", "icons/home.png", self.logic.home_path)
+        self.add_sidebar_button("Downloads", "icons/downloads.png", self.logic.downloads_path)
+        self.add_sidebar_button("Documents", "icons/documents.png", self.logic.documents_path)
+        self.add_sidebar_button("Pictures", "icons/pictures.png", self.logic.pictures_path)
+        self.add_sidebar_button("Music", "icons/music.png", self.logic.music_path)
+
+        # Breadcrumb navigation
+        self.breadcrumb_label = QWidget()
+        self.breadcrumb_layout = QHBoxLayout(self.breadcrumb_label)
+        self.breadcrumb_layout.setContentsMargins(0, 0, 0, 0)
+        self.breadcrumb_layout.setAlignment(Qt.AlignLeft)  # Align breadcrumb to the left
+
+        # File table
+        self.file_table = QTableWidget()
+        self.file_table.setColumnCount(4)
+        self.file_table.setHorizontalHeaderLabels(["Name", "Type", "Last Modified", "Empty"])
+        self.file_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.file_table.horizontalHeader().sectionClicked.connect(self.logic.sort_table)
+        self.file_table.setShowGrid(False)  # Remove gridlines globally
+        self.file_table.setSelectionBehavior(QTableWidget.SelectRows)  # Full-row selection
+        self.file_table.setSelectionMode(QTableWidget.SingleSelection)  # Single selection
+        self.file_table.verticalHeader().setVisible(False)  # Hide row numbers
+        self.file_table.cellDoubleClicked.connect(self.logic.on_table_double_click)
+
+        # Add context menu to file table
+        self.file_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.file_table.customContextMenuRequested.connect(self.show_context_menu)
+
+        # Main content layout
+        self.content_layout = QVBoxLayout()
+        self.content_layout.addWidget(self.breadcrumb_label)
+        self.content_layout.addWidget(self.file_table)
+
+        # Splitter to divide sidebar and content
+        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter.addWidget(self.sidebar)
+        self.content_frame = QFrame()
+        self.content_frame.setLayout(self.content_layout)
+        self.splitter.addWidget(self.content_frame)
+        self.layout.addWidget(self.splitter)
+
+        # Add three-point menu button
+        self.menu_button = QPushButton("⋮", self)
+        self.menu_button.setFixedSize(30, 30)
+        self.menu_button.setStyleSheet("""
+            QPushButton {
+                font-size: 18px;
+                border: none;
+                background-color: #ffffff;
+                padding: 5px;
+                border-radius: 15px;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+            }
+        """)
+        self.menu_button.clicked.connect(self.show_menu)
+        self.sidebar_layout.addWidget(self.menu_button)
+
+        # Load the default directory (Home)
+        self.logic.load_directory(self.logic.home_path)
+
+    def add_sidebar_button(self, name, icon_path, path):
+        button = QPushButton(name)
+        button.setIcon(QIcon(icon_path))
+        button.setIconSize(QSize(16, 16))
+        button.setStyleSheet("""
+            QPushButton {
+                background-color: #f5f5f5;
+                border: none;
+                padding: 10px;
+                margin: 5px 0;
+                text-align: left;
+                border-radius: 8px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #dcdcdc;
+            }
+        """)
+        button.clicked.connect(lambda: self.logic.load_directory(path))
+        self.sidebar_layout.addWidget(button)
+
+    def show_context_menu(self, position: QPoint):
+        """Show context menu for file table."""
+        menu = QMenu(self)
+
+        # Define actions
+        new_file_action = QAction("New File", self)
+        new_file_action.triggered.connect(self.create_new_file)
+
+        rename_action = QAction("Rename", self)
+        rename_action.triggered.connect(self.rename_item)
+
+        delete_action = QAction("Delete", self)
+        delete_action.triggered.connect(self.delete_item)
+
+        open_with_action = QAction("Open With...", self)
+        open_with_action.triggered.connect(self.open_with_program)
+
+        # Add actions to menu
+        menu.addAction(new_file_action)
+        menu.addAction(rename_action)
+        menu.addAction(delete_action)
+        menu.addSeparator()
+        menu.addAction(open_with_action)
+
+        # Show the menu
+        menu.exec_(self.file_table.viewport().mapToGlobal(position))
+
+    def create_new_file(self):
+        """Create a new file in the current directory."""
+        file_name, ok = QInputDialog.getText(self, "New File", "Enter file name:")
+        if ok and file_name:
+            file_path = os.path.join(self.logic.current_path, file_name)
+            try:
+                open(file_path, 'w').close()  # Create empty file
+                self.logic.load_directory(self.logic.current_path)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to create file: {e}")
+
+    def rename_item(self):
+        """Rename the selected file or folder."""
+        selected_row = self.file_table.currentRow()
+        if selected_row == -1:
+            QMessageBox.warning(self, "Warning", "No item selected.")
+            return
+
+        current_name = self.file_table.item(selected_row, 0).text()
+        new_name, ok = QInputDialog.getText(self, "Rename", "Enter new name:", text=current_name)
+        if ok and new_name:
+            old_path = os.path.join(self.logic.current_path, current_name)
+            new_path = os.path.join(self.logic.current_path, new_name)
+            try:
+                os.rename(old_path, new_path)
+                self.logic.load_directory(self.logic.current_path)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to rename item: {e}")
+
+    def delete_item(self):
+        """Delete the selected file or folder."""
+        selected_row = self.file_table.currentRow()
+        if selected_row == -1:
+            QMessageBox.warning(self, "Warning", "No item selected.")
+            return
+
+        item_name = self.file_table.item(selected_row, 0).text()
+        item_path = os.path.join(self.logic.current_path, item_name)
+        confirm = QMessageBox.question(self, "Delete", f"Are you sure you want to delete '{item_name}'?",
+                                        QMessageBox.Yes | QMessageBox.No)
+        if confirm == QMessageBox.Yes:
+            try:
+                if os.path.isdir(item_path):
+                    os.rmdir(item_path)  # Remove directory
+                else:
+                    os.remove(item_path)  # Remove file
+                self.logic.load_directory(self.logic.current_path)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to delete item: {e}")
+
+    def open_with_program(self):
+        """Open the selected file with a specific program."""
+        selected_row = self.file_table.currentRow()
+        if selected_row == -1:
+            QMessageBox.warning(self, "Warning", "No file selected.")
+            return
+
+        file_name = self.file_table.item(selected_row, 0).text()
+        file_path = os.path.join(self.logic.current_path, file_name)
+        program, ok = QInputDialog.getText(self, "Open With", "Enter program name:")
+        if ok and program:
+            try:
+                os.system(f"{program} \"{file_path}\"")  # Open with specified program
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to open file: {e}")
+
+    def show_menu(self):
+        """Show a three-point menu with options."""
+        menu = QMenu(self)
+        toggle_hidden_action = QAction("Show Hidden Files", self)
+        toggle_hidden_action.setCheckable(True)
+        toggle_hidden_action.setChecked(self.logic.show_hidden)
+        toggle_hidden_action.triggered.connect(self.logic.toggle_hidden_files)
+
+        menu.addAction(toggle_hidden_action)
+        menu.exec_(self.menu_button.mapToGlobal(self.menu_button.rect().bottomLeft()))
+
+    def load_styles(self):
+        return """
+        QMainWindow {
+            background-color: #f5f5f5;
+        }
+        QFrame {
+            background-color: #ffffff;
+            border-radius: 8px;
+        }
+        QLabel {
+            font-size: 14px;
+            color: #333333;
+        }
+        QPushButton {
+            font-size: 14px;
+        }
+        """
