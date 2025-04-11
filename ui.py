@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (
     QLabel, QWidget, QSplitter, QFrame, QHeaderView, QMenu, QAction, QInputDialog, QMessageBox
 )
 from PyQt5.QtCore import Qt, QPoint, QSize
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QCursor
 from logic import FileManagerLogic
 import os
 
@@ -41,8 +41,38 @@ class FileManagerUI(QMainWindow):
         # Breadcrumb navigation
         self.breadcrumb_label = QWidget()
         self.breadcrumb_layout = QHBoxLayout(self.breadcrumb_label)
-        self.breadcrumb_layout.setContentsMargins(0, 0, 0, 0)
+        self.breadcrumb_layout.setContentsMargins(10, 10, 10, 10)
         self.breadcrumb_layout.setAlignment(Qt.AlignLeft)  # Align breadcrumb to the left
+        self.breadcrumb_label.setStyleSheet("border-radius: 5px;")
+
+        # Set breadcrumb example and make it interactive
+        self.update_breadcrumb("Home/Documents/Projects")
+
+        # Add breadcrumb and three-points menu above the table
+        self.header_frame = QFrame()
+        self.header_layout = QHBoxLayout(self.header_frame)
+        self.header_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Add breadcrumb to the header
+        self.header_layout.addWidget(self.breadcrumb_label, alignment=Qt.AlignLeft)
+
+        # Add three-points menu to the header
+        self.menu_button = QPushButton("⋮", self)
+        self.menu_button.setFixedSize(30, 30)
+        self.menu_button.setStyleSheet("""
+            QPushButton {
+                font-size: 18px;
+                border: none;
+                background-color: #ffffff;
+                padding: 5px;
+                border-radius: 15px;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+            }
+        """)
+        self.menu_button.clicked.connect(self.show_menu)
+        self.header_layout.addWidget(self.menu_button, alignment=Qt.AlignRight)
 
         # File table
         self.file_table = QTableWidget()
@@ -62,7 +92,7 @@ class FileManagerUI(QMainWindow):
 
         # Main content layout
         self.content_layout = QVBoxLayout()
-        self.content_layout.addWidget(self.breadcrumb_label)
+        self.content_layout.addWidget(self.header_frame)  # Add header (breadcrumb + menu) above table
         self.content_layout.addWidget(self.file_table)
 
         # Splitter to divide sidebar and content
@@ -72,24 +102,6 @@ class FileManagerUI(QMainWindow):
         self.content_frame.setLayout(self.content_layout)
         self.splitter.addWidget(self.content_frame)
         self.layout.addWidget(self.splitter)
-
-        # Add three-point menu button
-        self.menu_button = QPushButton("⋮", self)
-        self.menu_button.setFixedSize(30, 30)
-        self.menu_button.setStyleSheet("""
-            QPushButton {
-                font-size: 18px;
-                border: none;
-                background-color: #ffffff;
-                padding: 5px;
-                border-radius: 15px;
-            }
-            QPushButton:hover {
-                background-color: #e0e0e0;
-            }
-        """)
-        self.menu_button.clicked.connect(self.show_menu)
-        self.sidebar_layout.addWidget(self.menu_button)
 
         # Load the default directory (Home)
         self.logic.load_directory(self.logic.home_path)
@@ -114,6 +126,43 @@ class FileManagerUI(QMainWindow):
         """)
         button.clicked.connect(lambda: self.logic.load_directory(path))
         self.sidebar_layout.addWidget(button)
+
+    def update_breadcrumb(self, path):
+        """Update the breadcrumb navigation with clickable parts."""
+        # Clear the current layout
+        for i in reversed(range(self.breadcrumb_layout.count())):
+            widget = self.breadcrumb_layout.itemAt(i).widget()
+            if widget:
+                widget.deleteLater()
+
+        # Create clickable breadcrumb parts
+        parts = path.split("/")
+        full_path = ""
+        for idx, part in enumerate(parts):
+            full_path = os.path.join(full_path, part)
+
+            # Create clickable label
+            label = QLabel(part)
+            label.setStyleSheet("""
+                QLabel {
+                    color: #007BFF;
+                    font-size: 14px;
+                    padding: 3px;
+                }
+                QLabel:hover {
+                    background-color: #f0f0f0;
+                    border-radius: 5px;
+                }
+            """)
+            label.setCursor(QCursor(Qt.PointingHandCursor))
+            label.mousePressEvent = lambda event, p=full_path: self.logic.load_directory(p)
+            self.breadcrumb_layout.addWidget(label)
+
+            # Add separator if not the last part
+            if idx < len(parts) - 1:
+                separator = QLabel(">")
+                separator.setStyleSheet("color: #333333; font-size: 14px; padding: 3px;")
+                self.breadcrumb_layout.addWidget(separator)
 
     def show_context_menu(self, position: QPoint):
         """Show context menu for file table."""
