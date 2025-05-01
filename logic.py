@@ -20,6 +20,8 @@ class FileManagerLogic:
     def load_directory(self, path):
         """Load the contents of a directory into the table."""
         self.current_path = path  # Update current_path whenever a new directory is loaded
+        self.ui.update_breadcrumb(path)
+        relative_path = os.path.abspath(path).replace(os.sep, '/')
         self.ui.file_table.setRowCount(0)
         directory = QDir(path)
         directory.setFilter(QDir.AllEntries | QDir.NoDotAndDotDot)
