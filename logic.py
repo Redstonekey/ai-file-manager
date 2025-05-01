@@ -19,11 +19,13 @@ class FileManagerLogic:
 
     def load_directory(self, path):
         """Load the contents of a directory into the table."""
-        self.current_path = path  # Update current_path whenever a new directory is loaded
-        self.ui.update_breadcrumb(path)
-        relative_path = os.path.abspath(path).replace(os.sep, '/')
+        # Normalize the path to avoid any duplication or invalid paths
+        normalized_path = os.path.abspath(path)
+        self.current_path = normalized_path  
+
+        # Clear the file table and populate it with the directory contents
         self.ui.file_table.setRowCount(0)
-        directory = QDir(path)
+        directory = QDir(normalized_path)
         directory.setFilter(QDir.AllEntries | QDir.NoDotAndDotDot)
         if not self.show_hidden:
             directory.setFilter(directory.filter() & ~QDir.Hidden)

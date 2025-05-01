@@ -38,23 +38,10 @@ class FileManagerUI(QMainWindow):
         self.add_sidebar_button("Pictures", "icons/pictures.png", self.logic.pictures_path)
         self.add_sidebar_button("Music", "icons/music.png", self.logic.music_path)
 
-        # Breadcrumb navigation
-        self.breadcrumb_label = QWidget()
-        self.breadcrumb_layout = QHBoxLayout(self.breadcrumb_label)
-        self.breadcrumb_layout.setContentsMargins(10, 10, 10, 10)
-        self.breadcrumb_layout.setAlignment(Qt.AlignLeft)  # Align breadcrumb to the left
-        self.breadcrumb_label.setStyleSheet("border-radius: 5px;")
-
-        # Set breadcrumb example and make it interactive
-        self.update_breadcrumb("Home/Documents/Projects")
-
         # Add breadcrumb and three-points menu above the table
         self.header_frame = QFrame()
         self.header_layout = QHBoxLayout(self.header_frame)
         self.header_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Add breadcrumb to the header
-        self.header_layout.addWidget(self.breadcrumb_label, alignment=Qt.AlignLeft)
 
         # Add three-points menu to the header
         self.menu_button = QPushButton("⋮", self)
@@ -95,14 +82,6 @@ class FileManagerUI(QMainWindow):
         self.content_layout.addWidget(self.header_frame)  # Add header (breadcrumb + menu) above table
         self.content_layout.addWidget(self.file_table)
 
-                # Header (Breadcrumb Navigation)
-        self.breadcrumb_label = QWidget()
-        self.breadcrumb_layout = QHBoxLayout(self.breadcrumb_label)
-        self.breadcrumb_layout.setContentsMargins(10, 10, 10, 10)
-        self.breadcrumb_layout.setAlignment(Qt.AlignLeft)
-        self.breadcrumb_label.setStyleSheet("border-radius: 5px;")
-
-
         # Splitter to divide sidebar and content
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.addWidget(self.sidebar)
@@ -134,53 +113,6 @@ class FileManagerUI(QMainWindow):
         """)
         button.clicked.connect(lambda: self.logic.load_directory(path))
         self.sidebar_layout.addWidget(button)
-
-    def update_breadcrumb(self, path):
-        """Update the breadcrumb navigation with clickable parts."""
-        # Clear the current layout
-        for i in reversed(range(self.breadcrumb_layout.count())):
-            widget = self.breadcrumb_layout.itemAt(i).widget()
-            if widget:
-                widget.deleteLater()
-
-        # Split the path and create parts
-        parts = path.split('/')
-        current_path = ""
-        
-        for idx, part in enumerate(parts):
-            if not part:  # Skip empty parts
-                continue
-                
-            # Build the absolute path progressively
-            if idx == 0 and os.path.isabs(path):
-                current_path = "/"
-            current_path = os.path.join(current_path, part)
-
-            # Create clickable label
-            label = QLabel(part)
-            label.setStyleSheet("""
-                QLabel {
-                    color: #007BFF;
-                    font-size: 14px;
-                    padding: 3px;
-                }
-                QLabel:hover {
-                    background-color: #f0f0f0;
-                    border-radius: 5px;
-                }
-            """)
-            label.setCursor(QCursor(Qt.PointingHandCursor))
-            
-            # Use a local variable to store the path
-            path_for_click = os.path.abspath(current_path)
-            label.mousePressEvent = lambda _, p=path_for_click: self.logic.load_directory(p)
-            self.breadcrumb_layout.addWidget(label)
-
-            # Add separator if not the last part
-            if idx < len(parts) - 1:
-                separator = QLabel(">")
-                separator.setStyleSheet("color: #333333; font-size: 14px; padding: 3px;")
-                self.breadcrumb_layout.addWidget(separator)
 
     def show_context_menu(self, position: QPoint):
         """Show context menu for file table."""
@@ -304,50 +236,3 @@ class FileManagerUI(QMainWindow):
         }
         """
 
-    def update_breadcrumb(self, path):
-        """Update the breadcrumb navigation with clickable parts."""
-        # Clear the current layout
-        for i in reversed(range(self.breadcrumb_layout.count())):
-            widget = self.breadcrumb_layout.itemAt(i).widget()
-            if widget:
-                widget.deleteLater()
-
-        # Split the path and create parts
-        parts = path.split(os.sep)
-        current_path = ""
-
-        for idx, part in enumerate(parts):
-            if not part:  # Skip empty parts
-                continue
-
-            # Build the absolute path progressively
-            if idx == 0 and os.path.isabs(path):
-                current_path = os.sep
-            else:
-                current_path = os.path.join(current_path, part)
-
-            # Create clickable label
-            label = QLabel(part if part else os.sep)
-            label.setStyleSheet("""
-                QLabel {
-                    color: #007BFF;
-                    font-size: 14px;
-                    padding: 3px;
-                }
-                QLabel:hover {
-                    background-color: #f0f0f0;
-                    border-radius: 5px;
-                }
-            """)
-            label.setCursor(QCursor(Qt.PointingHandCursor))
-
-            # Capture the current path correctly
-            path_for_click = os.path.abspath(current_path)
-            label.mousePressEvent = lambda _, p=path_for_click: self.logic.load_directory(p)
-            self.breadcrumb_layout.addWidget(label)
-
-            # Add separator if not the last part
-            if idx < len(parts) - 1:
-                separator = QLabel(">")
-                separator.setStyleSheet("color: #333333; font-size: 14px; padding: 3px;")
-                self.breadcrumb_layout.addWidget(separator)
