@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt, QPoint, QSize
 from PyQt5.QtGui import QIcon, QCursor
 from logic import FileManagerLogic
 import os
+from pathlib import Path
 
 
 class FileManagerUI(QMainWindow):
@@ -38,10 +39,16 @@ class FileManagerUI(QMainWindow):
         self.add_sidebar_button("Pictures", "icons/pictures.png", self.logic.pictures_path)
         self.add_sidebar_button("Music", "icons/music.png", self.logic.music_path)
 
-        # Add breadcrumb and three-points menu above the table
+        # Add breadcrumb navigation and three-points menu above the table
         self.header_frame = QFrame()
         self.header_layout = QHBoxLayout(self.header_frame)
         self.header_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Breadcrumb navigation widget
+        self.breadcrumb_widget = QWidget(self)
+        self.breadcrumb_layout = QHBoxLayout(self.breadcrumb_widget)
+        self.breadcrumb_layout.setContentsMargins(0, 0, 0, 0)
+        self.header_layout.addWidget(self.breadcrumb_widget, alignment=Qt.AlignLeft)
 
         # Add three-points menu to the header
         self.menu_button = QPushButton("⋮", self)
@@ -217,6 +224,30 @@ class FileManagerUI(QMainWindow):
 
         menu.addAction(toggle_hidden_action)
         menu.exec_(self.menu_button.mapToGlobal(self.menu_button.rect().bottomLeft()))
+
+    def update_breadcrumb(self, path):
+        """Update the breadcrumb buttons with the current path."""
+        # Clear existing breadcrumb items
+        for i in reversed(range(self.breadcrumb_layout.count())):
+            widget = self.breadcrumb_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+        # Build breadcrumb path parts
+        parts = Path(path).parts
+        cumulative = ""
+        for idx, part in enumerate(parts):
+            # Build cumulative path for this segment
+            cumulative = os.path.join(cumulative, part) if cumulative else part
+            # Add separator
+            if idx > 0:
+                sep = QLabel(" > ")
+                self.breadcrumb_layout.addWidget(sep)
+            # Add clickable part
+            btn = QPushButton(part)
+            btn.setFlat(True)
+            btn.setStyleSheet("color: blue; background: none; border: none; padding: 0;")
+            btn.clicked.connect(lambda checked, p=cumulative: self.logic.load_directory(p))
+            self.breadcrumb_layout.addWidget(btn)
 
     def load_styles(self):
         return """

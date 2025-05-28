@@ -23,6 +23,9 @@ class FileManagerLogic:
         normalized_path = os.path.abspath(path)
         self.current_path = normalized_path  
 
+        # Update breadcrumb in UI
+        self.ui.update_breadcrumb(self.current_path)
+
         # Clear the file table and populate it with the directory contents
         self.ui.file_table.setRowCount(0)
         directory = QDir(normalized_path)
