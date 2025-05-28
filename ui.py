@@ -1,12 +1,19 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QPushButton,
-    QLabel, QWidget, QSplitter, QFrame, QHeaderView, QMenu, QAction, QInputDialog, QMessageBox
+    QLabel, QWidget, QSplitter, QFrame, QHeaderView, QMenu, QAction, QInputDialog, QMessageBox, QLineEdit,
+    QProgressDialog, QFileDialog, QAbstractItemView
 )
 from PyQt5.QtCore import Qt, QPoint, QSize
+import shutil
+import zipfile
 from PyQt5.QtGui import QIcon, QCursor
-from logic import FileManagerLogic
+from PyQt5.QtGui import QPixmap
 import os
+from logic import FileManagerLogic
 from pathlib import Path
+import subprocess
+import platform
+import ctypes
 
 
 class FileManagerUI(QMainWindow):
@@ -50,6 +57,12 @@ class FileManagerUI(QMainWindow):
         self.breadcrumb_layout.setContentsMargins(0, 0, 0, 0)
         self.header_layout.addWidget(self.breadcrumb_widget, alignment=Qt.AlignLeft)
 
+        # Search bar
+        self.search_bar = QLineEdit(self)
+        self.search_bar.setPlaceholderText("Search...")
+        self.search_bar.textChanged.connect(self.filter_files)
+        self.header_layout.addWidget(self.search_bar)
+
         # Add three-points menu to the header
         self.menu_button = QPushButton("⋮", self)
         self.menu_button.setFixedSize(30, 30)
@@ -70,13 +83,19 @@ class FileManagerUI(QMainWindow):
 
         # File table
         self.file_table = QTableWidget()
-        self.file_table.setColumnCount(4)
-        self.file_table.setHorizontalHeaderLabels(["Name", "Type", "Last Modified", "Empty"])
+        self.file_table.setColumnCount(6)
+        self.file_table.setHorizontalHeaderLabels(["Name", "Type", "Size", "Permissions", "Last Modified", "Empty"])
         self.file_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.file_table.horizontalHeader().sectionClicked.connect(self.logic.sort_table)
         self.file_table.setShowGrid(False)  # Remove gridlines globally
         self.file_table.setSelectionBehavior(QTableWidget.SelectRows)  # Full-row selection
-        self.file_table.setSelectionMode(QTableWidget.SingleSelection)  # Single selection
+        self.file_table.setSelectionMode(QTableWidget.ExtendedSelection)  # Allow multi-selection via Shift/Ctrl
+        self.file_table.setDragEnabled(True)
+        self.file_table.setAcceptDrops(True)
+        self.file_table.setDragDropMode(QAbstractItemView.DragDrop)
+        self.file_table.dragEnterEvent = self._table_drag_enter
+        self.file_table.dropEvent = self._table_drop
+        self.file_table.dragMoveEvent = self._table_drag_move  # Accept drag move events
         self.file_table.verticalHeader().setVisible(False)  # Hide row numbers
         self.file_table.cellDoubleClicked.connect(self.logic.on_table_double_click)
 
@@ -84,10 +103,21 @@ class FileManagerUI(QMainWindow):
         self.file_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_table.customContextMenuRequested.connect(self.show_context_menu)
 
+        # Connect selection change to preview update
+        self.file_table.selectionModel().selectionChanged.connect(self.on_selection_changed)
+
+        # Create splitter for table and preview
+        self.content_splitter = QSplitter(Qt.Horizontal)
+        self.content_splitter.addWidget(self.file_table)
+        self.preview_label = QLabel("Preview Area")
+        self.preview_label.setAlignment(Qt.AlignCenter)
+        self.preview_label.setFixedWidth(300)
+        self.content_splitter.addWidget(self.preview_label)
+
         # Main content layout
         self.content_layout = QVBoxLayout()
         self.content_layout.addWidget(self.header_frame)  # Add header (breadcrumb + menu) above table
-        self.content_layout.addWidget(self.file_table)
+        self.content_layout.addWidget(self.content_splitter)
 
         # Splitter to divide sidebar and content
         self.splitter = QSplitter(Qt.Horizontal)
@@ -99,6 +129,12 @@ class FileManagerUI(QMainWindow):
 
         # Load the default directory (Home)
         self.logic.load_directory(self.logic.home_path)
+
+        # Clipboard for copy/paste
+        self.clipboard = []
+
+        # Dark mode flag
+        self.dark_mode = False
 
     def add_sidebar_button(self, name, icon_path, path):
         button = QPushButton(name)
@@ -126,7 +162,17 @@ class FileManagerUI(QMainWindow):
         menu = QMenu(self)
 
         # Define actions
+        copy_action = QAction("Copy", self)
+        copy_action.triggered.connect(self.copy_item)
+        paste_action = QAction("Paste", self)
+        paste_action.triggered.connect(self.paste_item)
+        compress_action = QAction("Compress", self)
+        compress_action.triggered.connect(self.compress_items)
+        extract_action = QAction("Extract Here", self)
+        extract_action.triggered.connect(self.extract_item)
         new_file_action = QAction("New File", self)
+        new_folder_action = QAction("New Folder", self)
+        new_folder_action.triggered.connect(self.create_new_folder)
         new_file_action.triggered.connect(self.create_new_file)
 
         rename_action = QAction("Rename", self)
@@ -139,14 +185,91 @@ class FileManagerUI(QMainWindow):
         open_with_action.triggered.connect(self.open_with_program)
 
         # Add actions to menu
+        menu.addAction(new_folder_action)
         menu.addAction(new_file_action)
+        menu.addSeparator()
+        menu.addAction(copy_action)
+        menu.addAction(paste_action)
+        menu.addSeparator()
         menu.addAction(rename_action)
         menu.addAction(delete_action)
+        menu.addSeparator()
+        menu.addAction(compress_action)
+        menu.addAction(extract_action)
         menu.addSeparator()
         menu.addAction(open_with_action)
 
         # Show the menu
         menu.exec_(self.file_table.viewport().mapToGlobal(position))
+
+    def copy_item(self):
+        """Copy selected items to clipboard."""
+        self.clipboard.clear()
+        for item in self.file_table.selectedItems()[::6]:  # step by columns
+            path = os.path.join(self.logic.current_path, item.text())
+            self.clipboard.append(path)
+        QMessageBox.information(self, "Copy", f"{len(self.clipboard)} item(s) copied.")
+
+    def paste_item(self):
+        """Paste items from clipboard to current directory."""
+        if not self.clipboard:
+            QMessageBox.warning(self, "Paste", "Clipboard is empty.")
+            return
+        dlg = QProgressDialog("Pasting files...", "Cancel", 0, len(self.clipboard), self)
+        dlg.setWindowModality(Qt.WindowModal)
+        for i, src in enumerate(self.clipboard):
+            if dlg.wasCanceled(): break
+            fname = os.path.basename(src)
+            dest = os.path.join(self.logic.current_path, fname)
+            try:
+                if os.path.isdir(src): shutil.copytree(src, dest)
+                else: shutil.copy2(src, dest)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to paste {fname}: {e}")
+            dlg.setValue(i+1)
+        dlg.close()
+        self.logic.load_directory(self.logic.current_path)
+
+    def compress_items(self):
+        """Compress selected items into a zip archive."""
+        items = set(self.file_table.selectedItems()[::6])
+        if not items:
+            QMessageBox.warning(self, "Compress", "No items selected.")
+            return
+        name, ok = QInputDialog.getText(self, "Compress", "Enter archive name:")
+        if not ok or not name: return
+        archive_path = os.path.join(self.logic.current_path, name + ".zip")
+        dlg = QProgressDialog("Compressing...", "Cancel", 0, len(items), self)
+        dlg.setWindowModality(Qt.WindowModal)
+        with zipfile.ZipFile(archive_path, 'w') as zf:
+            for i, item in enumerate(items):
+                if dlg.wasCanceled(): break
+                path = os.path.join(self.logic.current_path, item.text())
+                if os.path.isdir(path):
+                    for root, dirs, files in os.walk(path):
+                        for f in files:
+                            full = os.path.join(root, f)
+                            zf.write(full, os.path.relpath(full, self.logic.current_path))
+                else:
+                    zf.write(path, item.text())
+                dlg.setValue(i+1)
+        dlg.close()
+        self.logic.load_directory(self.logic.current_path)
+
+    def extract_item(self):
+        """Extract selected zip archive into current directory."""
+        selected = self.file_table.currentItem()
+        if not selected: return
+        path = os.path.join(self.logic.current_path, selected.text())
+        ext = os.path.splitext(path)[1].lower()
+        if ext != ".zip":
+            QMessageBox.warning(self, "Extract", "Selected file is not a zip archive.")
+            return
+        try:
+            shutil.unpack_archive(path, self.logic.current_path)
+            self.logic.load_directory(self.logic.current_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to extract: {e}")
 
     def create_new_file(self):
         """Create a new file in the current directory."""
@@ -158,6 +281,17 @@ class FileManagerUI(QMainWindow):
                 self.logic.load_directory(self.logic.current_path)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to create file: {e}")
+
+    def create_new_folder(self):
+        """Create a new folder in the current directory."""
+        folder_name, ok = QInputDialog.getText(self, "New Folder", "Enter folder name:")
+        if ok and folder_name:
+            folder_path = os.path.join(self.logic.current_path, folder_name)
+            try:
+                os.mkdir(folder_path)
+                self.logic.load_directory(self.logic.current_path)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to create folder: {e}")
 
     def rename_item(self):
         """Rename the selected file or folder."""
@@ -207,10 +341,18 @@ class FileManagerUI(QMainWindow):
 
         file_name = self.file_table.item(selected_row, 0).text()
         file_path = os.path.join(self.logic.current_path, file_name)
-        program, ok = QInputDialog.getText(self, "Open With", "Enter program name:")
-        if ok and program:
+        # Use Windows Shell 'Open With' dialog if on Windows
+        if platform.system() == "Windows":
             try:
-                os.system(f"{program} \"{file_path}\"")  # Open with specified program
+                ctypes.windll.shell32.ShellExecuteW(None, "openas", file_path, None, None, 1)
+                return
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to open with Windows dialog: {e}")
+        # Fallback: select program manually
+        program, _ = QFileDialog.getOpenFileName(self, "Select program to open with", "", "Executables (*.exe);;All Files (*)")
+        if program:
+            try:
+                subprocess.Popen([program, file_path])
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to open file: {e}")
 
@@ -221,9 +363,31 @@ class FileManagerUI(QMainWindow):
         toggle_hidden_action.setCheckable(True)
         toggle_hidden_action.setChecked(self.logic.show_hidden)
         toggle_hidden_action.triggered.connect(self.logic.toggle_hidden_files)
+        # Dark mode toggle
+        toggle_theme_action = QAction("Dark Mode", self)
+        toggle_theme_action.setCheckable(True)
+        toggle_theme_action.setChecked(self.dark_mode)
+        toggle_theme_action.triggered.connect(self.toggle_dark_mode)
 
         menu.addAction(toggle_hidden_action)
+        menu.addAction(toggle_theme_action)
         menu.exec_(self.menu_button.mapToGlobal(self.menu_button.rect().bottomLeft()))
+
+    def toggle_dark_mode(self):
+        """Toggle between light and dark themes."""
+        self.dark_mode = not self.dark_mode
+        if self.dark_mode:
+            self.setStyleSheet(self.load_dark_styles())
+        else:
+            self.setStyleSheet(self.load_styles())
+
+    def load_dark_styles(self):
+        return '''
+        QMainWindow { background-color: #2e2e2e; color: #f0f0f0; }
+        QFrame { background-color: #3c3c3c; border-radius: 8px; }
+        QLabel { color: #f0f0f0; }
+        QPushButton { color: #f0f0f0; }
+        '''
 
     def update_breadcrumb(self, path):
         """Update the breadcrumb buttons with the current path."""
@@ -266,4 +430,53 @@ class FileManagerUI(QMainWindow):
             font-size: 14px;
         }
         """
+
+    def _table_drag_enter(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def _table_drop(self, event):
+        for url in event.mimeData().urls():
+            src = url.toLocalFile()
+            dest = os.path.join(self.logic.current_path, os.path.basename(src))
+            try:
+                # Copy file or directory
+                if os.path.isdir(src):
+                    shutil.copytree(src, dest)
+                else:
+                    shutil.copy2(src, dest)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to import item: {e}")
+        self.logic.load_directory(self.logic.current_path)
+
+    def _table_drag_move(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def filter_files(self, text):
+        """Filter table rows based on search text."""
+        for row in range(self.file_table.rowCount()):
+            item = self.file_table.item(row, 0)
+            if item:
+                match = text.lower() in item.text().lower()
+                self.file_table.setRowHidden(row, not match)
+
+    def on_selection_changed(self, selected, deselected):
+        """Update preview when selection changes."""
+        items = self.file_table.selectedItems()
+        if not items:
+            return
+        file_name = items[0].text()
+        file_path = os.path.join(self.logic.current_path, file_name)
+        self.show_preview(file_path)
+
+    def show_preview(self, file_path):
+        """Show a simple preview for images or filename for other types."""
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext in ['.png', '.jpg', '.jpeg', '.bmp', '.gif']:
+            pixmap = QPixmap(file_path)
+            self.preview_label.setPixmap(pixmap.scaled(self.preview_label.size(), Qt.KeepAspectRatio))
+        else:
+            self.preview_label.setPixmap(QPixmap())
+            self.preview_label.setText(os.path.basename(file_path))
 
