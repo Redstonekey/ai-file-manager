@@ -1,9 +1,9 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QPushButton,
     QLabel, QWidget, QSplitter, QFrame, QHeaderView, QMenu, QAction, QInputDialog, QMessageBox, QLineEdit,
-    QProgressDialog, QFileDialog, QAbstractItemView
+    QProgressDialog, QFileDialog, QAbstractItemView, QDialog, QCheckBox, QDialogButtonBox
 )
-from PyQt5.QtCore import Qt, QPoint, QSize
+from PyQt5.QtCore import Qt, QPoint, QSize, QSettings
 import shutil
 import zipfile
 from PyQt5.QtGui import QIcon, QCursor
@@ -85,7 +85,12 @@ class FileManagerUI(QMainWindow):
         self.file_table = QTableWidget()
         self.file_table.setColumnCount(6)
         self.file_table.setHorizontalHeaderLabels(["Name", "Type", "Size", "Permissions", "Last Modified", "Empty"])
-        self.file_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        # Allow interactive column resizing and load saved widths
+        header = self.file_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setSectionsMovable(True)
+        header.setSectionsClickable(True)
+        header.setStretchLastSection(False)
         self.file_table.horizontalHeader().sectionClicked.connect(self.logic.sort_table)
         self.file_table.setShowGrid(False)  # Remove gridlines globally
         self.file_table.setSelectionBehavior(QTableWidget.SelectRows)  # Full-row selection
@@ -135,6 +140,17 @@ class FileManagerUI(QMainWindow):
 
         # Dark mode flag
         self.dark_mode = False
+        # Initialize settings for preferences
+        self.settings = QSettings("MyCompany", "AIFileManager")
+        # Load and apply column visibility
+        self.load_column_settings()
+        # Load and apply column widths
+        self.load_column_widths()
+        # Save widths when resized
+        self.file_table.horizontalHeader().sectionResized.connect(lambda idx, old, new: self.save_column_widths())
+        # Load and apply preview visibility
+        self.preview_visible = self.settings.value("preview_visible", True, type=bool)
+        self.content_splitter.widget(1).setVisible(self.preview_visible)
 
     def add_sidebar_button(self, name, icon_path, path):
         button = QPushButton(name)
@@ -232,7 +248,9 @@ class FileManagerUI(QMainWindow):
 
     def compress_items(self):
         """Compress selected items into a zip archive."""
-        items = set(self.file_table.selectedItems()[::6])
+        # Get unique selected rows
+        rows = sorted({idx.row() for idx in self.file_table.selectionModel().selectedIndexes()})
+        items = [self.file_table.item(r, 0).text() for r in rows]
         if not items:
             QMessageBox.warning(self, "Compress", "No items selected.")
             return
@@ -242,16 +260,16 @@ class FileManagerUI(QMainWindow):
         dlg = QProgressDialog("Compressing...", "Cancel", 0, len(items), self)
         dlg.setWindowModality(Qt.WindowModal)
         with zipfile.ZipFile(archive_path, 'w') as zf:
-            for i, item in enumerate(items):
+            for i, fname in enumerate(items):
                 if dlg.wasCanceled(): break
-                path = os.path.join(self.logic.current_path, item.text())
+                path = os.path.join(self.logic.current_path, fname)
                 if os.path.isdir(path):
                     for root, dirs, files in os.walk(path):
                         for f in files:
                             full = os.path.join(root, f)
                             zf.write(full, os.path.relpath(full, self.logic.current_path))
                 else:
-                    zf.write(path, item.text())
+                    zf.write(path, fname)
                 dlg.setValue(i+1)
         dlg.close()
         self.logic.load_directory(self.logic.current_path)
@@ -368,6 +386,17 @@ class FileManagerUI(QMainWindow):
         toggle_theme_action.setCheckable(True)
         toggle_theme_action.setChecked(self.dark_mode)
         toggle_theme_action.triggered.connect(self.toggle_dark_mode)
+        # Toggle preview pane
+        preview_action = QAction("Show Preview", self)
+        preview_action.setCheckable(True)
+        preview_action.setChecked(self.preview_visible)
+        # Use toggled so checked state is passed
+        preview_action.toggled.connect(self.toggle_preview)
+        menu.addAction(preview_action)
+        # Select visible details
+        details_action = QAction("Select Details...", self)
+        details_action.triggered.connect(self.show_details_dialog)
+        menu.addAction(details_action)
 
         menu.addAction(toggle_hidden_action)
         menu.addAction(toggle_theme_action)
@@ -431,6 +460,77 @@ class FileManagerUI(QMainWindow):
         }
         """
 
+    def load_column_settings(self):
+        """Load visible columns preferences."""
+        visible = self.settings.value("visible_columns", None)
+        if visible is None:
+            indices = list(range(self.file_table.columnCount()))
+        else:
+            indices = [int(i) for i in visible]
+        for i in range(self.file_table.columnCount()):
+            self.file_table.setColumnHidden(i, i not in indices)
+
+    def load_column_widths(self):
+        """Load column widths based on saved percentages for current table width."""
+        percents = self.settings.value("column_percents", None)
+        header = self.file_table.horizontalHeader()
+        # allow resizing handles and moving sections
+        header.setSectionsMovable(True)
+        header.setStretchLastSection(False)
+        table_width = self.file_table.viewport().width() or self.file_table.width()
+        if percents:
+            # apply saved percentages
+            for i, p in enumerate(percents):
+                try:
+                    percent = float(p)
+                    self.file_table.setColumnWidth(i, int(table_width * percent))
+                except (IndexError, ValueError):
+                    pass
+        else:
+            # no saved: enable interactive resizing for all columns
+            for i in range(self.file_table.columnCount()):
+                header.setSectionResizeMode(i, QHeaderView.Interactive)
+                # ensure interactive resize hint
+                header.setHighlightSections(True)
+
+    def save_column_widths(self):
+        """Save current column widths as percentages for relative resizing."""
+        widths = [self.file_table.columnWidth(i) for i in range(self.file_table.columnCount())]
+        total = sum(widths)
+        if total > 0:
+            percents = [w / total for w in widths]
+            self.settings.setValue("column_percents", [str(p) for p in percents])
+
+    def resizeEvent(self, event):
+        """Reapply proportional column widths when window is resized."""
+        super().resizeEvent(event)
+        self.load_column_widths()
+
+    def show_details_dialog(self):
+        """Show dialog to select which details (columns) are visible."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Details")
+        layout = QVBoxLayout(dialog)
+        checkboxes = []
+        for i in range(self.file_table.columnCount()):
+            name = self.file_table.horizontalHeaderItem(i).text()
+            cb = QCheckBox(name)
+            cb.setChecked(not self.file_table.isColumnHidden(i))
+            layout.addWidget(cb)
+            checkboxes.append((i, cb))
+        btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addWidget(btn_box)
+        btn_box.accepted.connect(dialog.accept)
+        btn_box.rejected.connect(dialog.reject)
+        if dialog.exec_() == QDialog.Accepted:
+            visible = []
+            for i, cb in checkboxes:
+                show = cb.isChecked()
+                self.file_table.setColumnHidden(i, not show)
+                if show:
+                    visible.append(i)
+            self.settings.setValue("visible_columns", [str(i) for i in visible])
+
     def _table_drag_enter(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
@@ -479,4 +579,12 @@ class FileManagerUI(QMainWindow):
         else:
             self.preview_label.setPixmap(QPixmap())
             self.preview_label.setText(os.path.basename(file_path))
+
+    def toggle_preview(self, checked: bool):
+        """Show or hide the preview pane and reload column layouts."""
+        self.preview_visible = checked
+        self.settings.setValue("preview_visible", self.preview_visible)
+        self.content_splitter.widget(1).setVisible(self.preview_visible)
+        # Adjust columns to new available width
+        self.load_column_widths()
 
