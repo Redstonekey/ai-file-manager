@@ -141,11 +141,11 @@ class FileManagerLogic:
         """Open a file with the default program associated with its type."""
         try:
             if platform.system() == "Windows":
-                os.startfile(file_path)  # Windows-specific            elif platform.system() == "Darwin":  # macOS
+                os.startfile(file_path)  # Windows-specific
+            elif platform.system() == "Darwin":  # macOS
                 subprocess.run(["open", file_path])
             else:  # Linux and other Unix-like systems
-                subprocess.run(["xdg-open", file_path])
-        except Exception as e:
+                subprocess.run(["xdg-open", file_path])        except Exception as e:
             print(f"Error opening file: {e}")
 
     def toggle_hidden_files(self):

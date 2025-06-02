@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QPushButton,
     QLabel, QWidget, QSplitter, QFrame, QHeaderView, QMenu, QAction, QInputDialog, QMessageBox, QLineEdit,
-    QProgressDialog, QFileDialog, QAbstractItemView, QDialog, QCheckBox, QDialogButtonBox
+    QProgressDialog, QFileDialog, QAbstractItemView, QDialog, QCheckBox, QDialogButtonBox, QGridLayout, QScrollArea
 )
 from PyQt5.QtCore import Qt, QPoint, QSize, QSettings
 import shutil
@@ -33,6 +33,7 @@ class FileManagerUI(QMainWindow):
 
         # Sidebar
         self.sidebar = QFrame()
+        self.sidebar.setObjectName("sidebar")  # for styling
         self.sidebar.setFixedWidth(200)
         self.sidebar.setStyleSheet("background-color: #e0e0e0; border-radius: 8px;")
         self.sidebar_layout = QVBoxLayout(self.sidebar)
@@ -57,14 +58,19 @@ class FileManagerUI(QMainWindow):
         self.breadcrumb_layout.setContentsMargins(0, 0, 0, 0)
         self.header_layout.addWidget(self.breadcrumb_widget, alignment=Qt.AlignLeft)
 
+        # Header frame for styling
+        self.header_frame.setObjectName("headerFrame")
+
         # Search bar
         self.search_bar = QLineEdit(self)
+        self.search_bar.setObjectName("searchBar")
         self.search_bar.setPlaceholderText("Search...")
         self.search_bar.textChanged.connect(self.filter_files)
         self.header_layout.addWidget(self.search_bar)
 
         # Add three-points menu to the header
         self.menu_button = QPushButton("⋮", self)
+        self.menu_button.setObjectName("menuButton")  # for styling
         self.menu_button.setFixedSize(30, 30)
         self.menu_button.setStyleSheet("""
             QPushButton {
@@ -73,8 +79,7 @@ class FileManagerUI(QMainWindow):
                 background-color: #ffffff;
                 padding: 5px;
                 border-radius: 15px;
-            }
-            QPushButton:hover {
+            }            QPushButton:hover {
                 background-color: #e0e0e0;
             }
         """)
@@ -154,6 +159,7 @@ class FileManagerUI(QMainWindow):
 
     def add_sidebar_button(self, name, icon_path, path):
         button = QPushButton(name)
+        button.setObjectName("sidebarButton")  # for QSS styling
         button.setIcon(QIcon(icon_path))
         button.setIconSize(QSize(16, 16))
         button.setStyleSheet("""
@@ -444,19 +450,110 @@ class FileManagerUI(QMainWindow):
 
     def load_styles(self):
         return """
-        QMainWindow {
-            background-color: #f5f5f5;
+        /* Theme variables */
+        QWidget {
+            --primary-bg: #ffffff;
+            --secondary-bg: #f8f9fa;
+            --accent-color: #0078d4;
+            --text-primary: #323130;
+            --text-secondary: #605e5c;
+            --border-color: #e1e1e1;
+            --border-radius: 8px;
+            --shadow: 0px 2px 8px rgba(0,0,0,0.1);
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 14px;
+            color: var(--text-primary);
+            background: var(--primary-bg);
         }
+
+        /* Frames and panels */
         QFrame {
-            background-color: #ffffff;
-            border-radius: 8px;
+            background: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
         }
-        QLabel {
-            font-size: 14px;
-            color: #333333;
+
+        /* Sidebar styling */
+        QFrame#sidebar {
+            background: var(--secondary-bg);
+            border: none;
         }
-        QPushButton {
-            font-size: 14px;
+        QPushButton#sidebarButton {
+            background: var(--secondary-bg);
+            color: var(--text-primary);
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 8px 12px;
+            text-align: left;
+        }
+        QPushButton#sidebarButton:hover {
+            background: var(--accent-color);
+            color: #ffffff;
+        }
+
+        /* Header styling */
+        QFrame#headerFrame {
+            background: var(--primary-bg);
+            border-bottom: 1px solid var(--border-color);
+        }        QPushButton#menuButton {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            padding: 4px;
+        }
+        QPushButton#menuButton:hover {
+            background: var(--secondary-bg);
+            color: var(--text-primary);
+        }
+
+        /* Search bar */
+        QLineEdit#searchBar {
+            background: var(--primary-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 4px 8px;
+            min-height: 24px;
+        }
+
+        /* Table styling */
+        QTableWidget {
+            background: var(--primary-bg);
+            alternate-background-color: var(--secondary-bg);
+            gridline-color: var(--border-color);
+        }
+        QTableWidget::item:selected {
+            background: var(--accent-color);
+            color: #ffffff;
+        }
+        QHeaderView::section {
+            background: var(--secondary-bg);
+            color: var(--text-secondary);
+            padding: 4px;
+            border: none;
+            border-bottom: 2px solid var(--accent-color);
+        }
+
+        /* Scrollbar styling */
+        QScrollBar:vertical, QScrollBar:horizontal {
+            background: var(--secondary-bg);
+            border-radius: var(--border-radius);
+            width: 8px;
+            height: 8px;
+        }
+        QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+            background: var(--accent-color);
+        }
+
+        /* Preview area */
+        QLabel#previewLabel {
+            background: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 8px;
         }
         """
 
@@ -584,7 +681,6 @@ class FileManagerUI(QMainWindow):
         """Show or hide the preview pane and reload column layouts."""
         self.preview_visible = checked
         self.settings.setValue("preview_visible", self.preview_visible)
-        self.content_splitter.widget(1).setVisible(self.preview_visible)
-        # Adjust columns to new available width
+        self.content_splitter.widget(1).setVisible(self.preview_visible)        # Adjust columns to new available width
         self.load_column_widths()
 
