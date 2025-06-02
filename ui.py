@@ -11,6 +11,9 @@ import zipfile
 import subprocess
 import platform
 import ctypes
+import winreg
+import shlex
+from ctypes import wintypes, windll, create_unicode_buffer, byref
 from logic import FileManagerLogic
 from pathlib import Path
 
@@ -18,7 +21,8 @@ from pathlib import Path
 class FileManagerUI(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Files")
+        self.setWindowTitle(f"AI File Manager")
+        self.setWindowIcon(QIcon("icon.png"))
         self.setGeometry(100, 100, 1200, 700)
         self.setStyleSheet(self.load_styles())
 
@@ -398,22 +402,34 @@ class FileManagerUI(QMainWindow):
             self.logic.load_directory(self.logic.current_path)
 
     def open_with_program(self):
-        """Open file with a specific program."""
+        """Show 'Open With' dialog for the selected file across platforms."""
         selected_items = self.file_table.selectionModel().selectedRows()
-        if len(selected_items) != 1:
+        if not selected_items:
             return
-            
-        item_name = self.file_table.item(selected_items[0].row(), 0).text()
-        item_path = os.path.join(self.logic.current_path, item_name)
-        
-        if os.path.isfile(item_path):
-            program_path, _ = QFileDialog.getOpenFileName(self, "Select Program", "", "Executable Files (*.exe)")
-            if program_path:
-                try:
-                    subprocess.run([program_path, item_path])
-                except Exception as e:
-                    QMessageBox.warning(self, "Error", f"Failed to open with program: {str(e)}")
 
+        item_name = self.file_table.item(selected_items[0].row(), 0).text()
+        file_path = os.path.join(self.logic.current_path, item_name)
+
+        try:
+            system = platform.system()
+            if system == 'Windows':
+                os.system(f'rundll32.exe shell32.dll,OpenAs_RunDLL {file_path}')
+            elif system == 'Darwin':  # macOS
+                subprocess.run(['open', '-R', file_path])
+            elif system == 'Linux':
+                # Try common Linux desktop environments
+                desktop = os.environ.get('XDG_CURRENT_DESKTOP', '').lower()
+                if 'kde' in desktop:
+                    subprocess.run(['kde-open5', '--chooser', file_path])
+                elif 'gnome' in desktop:
+                    subprocess.run(['gio', 'open', '--ask', file_path])
+                else:
+                    # Fallback to xdg-open for other Linux environments
+                    subprocess.run(['xdg-open', file_path])
+            else:
+                QMessageBox.warning(self, "Error", f"Unsupported operating system: {system}")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to open 'Open With' dialog: {str(e)}")
     def show_menu(self):
         """Show the main menu."""
         menu = QMenu(self)
