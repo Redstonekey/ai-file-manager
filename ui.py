@@ -80,12 +80,16 @@ class FileManagerUI(QMainWindow):
         self.back_button.setObjectName("navButton")
         self.forward_button = QPushButton("▶")
         self.forward_button.setObjectName("navButton")
+        self.refresh_button = QPushButton("🔄")
+        self.refresh_button.setObjectName("navButton")
         self.home_button = QPushButton("🏠")
         self.home_button.setObjectName("navButton")
         self.home_button.clicked.connect(lambda: self.logic.load_directory(self.logic.home_path))
 
         nav_layout.addWidget(self.back_button)
         nav_layout.addWidget(self.forward_button)
+        nav_layout.addWidget(self.refresh_button)
+        self.refresh_button.clicked.connect(lambda: self.logic.load_directory(self.logic.current_path))
         nav_layout.addWidget(self.home_button)
 
         # Breadcrumb navigation
