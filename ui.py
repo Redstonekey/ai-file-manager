@@ -306,8 +306,11 @@ class FileManagerUI(QMainWindow):
         self.search_bar.textChanged.connect(self.filter_files)
 
         # Menu button
-        self.menu_button = QPushButton("⋮")
+        # Menu button
+        self.menu_button = QPushButton()
         self.menu_button.setObjectName("menuButton")
+        self.menu_button.setIcon(QIcon("icons/three-point.svg"))
+        self.menu_button.setIconSize(QSize(20, 20))
         self.menu_button.clicked.connect(self.show_menu)
 
         # Add to toolbar
