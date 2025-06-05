@@ -4,6 +4,7 @@ import subprocess
 from PyQt5.QtWidgets import QTableWidgetItem
 from PyQt5.QtCore import QDir, QDateTime, Qt, QFile, QSettings
 from PyQt5.QtGui import QColor
+import string  # for drive enumeration
 
 
 class FileManagerLogic:
@@ -12,12 +13,15 @@ class FileManagerLogic:
         # Initialize and load preferences
         self.settings = QSettings("MyCompany", "AIFileManager")
         self.show_hidden = self.settings.value("show_hidden", False, type=bool)
-        self.current_path = QDir.homePath()  # Initialize current_path to the home directory
-        self.home_path = QDir.homePath()
-        self.downloads_path = QDir.homePath() + "/Downloads"
-        self.documents_path = QDir.homePath() + "/Documents"
-        self.pictures_path = QDir.homePath() + "/Pictures"
-        self.music_path = QDir.homePath() + "/Music"
+        # Set up actual base path and virtual Home
+        self.current_path = QDir.homePath()
+        self.real_home_path = self.current_path  # file system home
+        self.home_path = "__HOME__"               # virtual Home identifier
+        # Standard quick-access directories
+        self.downloads_path = os.path.join(self.real_home_path, "Downloads")
+        self.documents_path = os.path.join(self.real_home_path, "Documents")
+        self.pictures_path = os.path.join(self.real_home_path, "Pictures")
+        self.music_path = os.path.join(self.real_home_path, "Music")
         # Track last sort preferences and load
         sc = self.settings.value("sort_column", None)
         so = self.settings.value("sort_order", None)
@@ -26,12 +30,21 @@ class FileManagerLogic:
 
     def load_directory(self, path):
         """Load the contents of a directory into the table."""
+        # Handle virtual Home page
+        if path == self.home_path:
+            self.current_path = path
+            self.ui.update_breadcrumb("Home")
+            self.ui.show_home_view()
+            return
         # Normalize the path to avoid any duplication or invalid paths
         normalized_path = os.path.abspath(path)
         self.current_path = normalized_path  
 
         # Update breadcrumb in UI
         self.ui.update_breadcrumb(self.current_path)
+        
+        # Show file view instead of home view
+        self.ui.show_file_view()
 
         # Clear the file table and populate it with the directory contents
         self.ui.file_table.setRowCount(0)
@@ -126,28 +139,35 @@ class FileManagerLogic:
         item = self.ui.file_table.item(row, 0)
         if not item:
             return
-
+        # If we're on virtual Home, use stored path to navigate
+        if self.current_path == self.home_path:
+            target = item.data(Qt.UserRole)
+            if target:
+                if QDir(target).exists():
+                    self.load_directory(target)
+                else:
+                    self.open_file(target)
+            return
         selected_name = item.text()
-        selected_path = QDir(self.current_path).filePath(selected_name)
-
-        # If it's a folder, navigate into it
+        selected_path = QDir(self.current_path).filePath(selected_name)        # If it's a folder, navigate into it
         if QDir(selected_path).exists():
             self.load_directory(selected_path)
         else:
             # If it's a file, open it with the default program
             self.open_file(selected_path)
-
+    
     def open_file(self, file_path):
         """Open a file with the default program associated with its type."""
         try:
             if platform.system() == "Windows":
-                os.startfile(file_path)  # Windows-specific            elif platform.system() == "Darwin":  # macOS
+                os.startfile(file_path)  # Windows-specific
+            elif platform.system() == "Darwin":  # macOS
                 subprocess.run(["open", file_path])
             else:  # Linux and other Unix-like systems
                 subprocess.run(["xdg-open", file_path])
         except Exception as e:
             print(f"Error opening file: {e}")
-
+    
     def toggle_hidden_files(self):
         """Toggle visibility of hidden files."""
         self.show_hidden = not self.show_hidden

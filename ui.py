@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QPoint, QSize, QSettings
 from PyQt5.QtGui import QIcon, QCursor, QPixmap
 import os
+import time
 import shutil
 import zipfile
 import subprocess
@@ -13,16 +14,213 @@ import platform
 import ctypes
 import winreg
 import shlex
+import string
 from ctypes import wintypes, windll, create_unicode_buffer, byref
 from logic import FileManagerLogic
 from pathlib import Path
 
 
+class HomeView(QWidget):
+    def __init__(self, logic):
+        super().__init__()
+        self.logic = logic
+        self.setObjectName("homeView")
+        self.setup_ui()
+    
+    def setup_ui(self):
+        """Setup the home view UI with icon grid."""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(30)
+        
+        # Create scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setObjectName("homeScrollArea")
+        
+        # Main content widget
+        content = QWidget()
+        content.setObjectName("homeContent")
+        content_layout = QVBoxLayout(content)
+        content_layout.setSpacing(40)
+          # Quick Access section - include drives
+        quick_access_items = [
+            ("Downloads", "downloads", self.logic.downloads_path),
+            ("Documents", "documents", self.logic.documents_path), 
+            ("Pictures", "pictures", self.logic.pictures_path),
+            ("Music", "music", self.logic.music_path)
+        ]
+        
+        # Add available drives to Quick Access
+        for letter in string.ascii_uppercase:
+            drive = f"{letter}:\\"
+            if os.path.exists(drive):
+                quick_access_items.append((f"Drive {letter}:", "home", drive))
+        
+        self.create_section("Quick Access", quick_access_items, content_layout)
+          # Recent Files section
+        recent_files = self.get_recent_files()
+        if recent_files:
+            self.create_recent_files_table("Recently Used", recent_files, content_layout)
+        
+        content_layout.addStretch()
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
+    
+    def create_section(self, title, items, parent_layout):
+        """Create a section with title and icon grid."""
+        # Section title
+        title_label = QLabel(title)
+        title_label.setObjectName("homeSectionTitle")
+        parent_layout.addWidget(title_label)
+          # Grid for icons
+        grid = QGridLayout()
+        grid.setSpacing(25)
+        
+        cols = 4  # 4 items per row for single row Quick Access
+        for i, (name, icon, path) in enumerate(items):
+            row = i // cols
+            col = i % cols
+            
+            # Create icon button
+            btn = QPushButton()
+            btn.setObjectName("homeIconButton")
+            btn.setFixedSize(160, 130)  # Much bigger boxes
+            
+            # Set icon
+            btn.setIcon(QIcon(f"icons/{icon}.svg"))
+            btn.setIconSize(QSize(64, 64))  # Bigger icons
+            
+            # Set text below icon
+            btn.setText(name)
+              # Connect click
+            btn.clicked.connect(lambda checked, p=path: self.logic.load_directory(p))
+            
+            grid.addWidget(btn, row, col)
+        
+        parent_layout.addLayout(grid)
+    
+    def get_recent_files(self):
+        """Get recently modified files from common locations."""
+        recent = []
+        locations = [self.logic.downloads_path, self.logic.documents_path, 
+                    self.logic.pictures_path, self.logic.music_path]
+        
+        for location in locations:
+            if os.path.exists(location):
+                try:
+                    files = []
+                    for file in os.listdir(location):
+                        file_path = os.path.join(location, file)
+                        if os.path.isfile(file_path):  # Only files, not directories
+                            mtime = os.path.getmtime(file_path)
+                            files.append((file, file_path, mtime))
+                    
+                    # Sort by modification time and take 2 most recent
+                    files.sort(key=lambda x: x[2], reverse=True)
+                    for file, path, _ in files[:2]:
+                        if len(recent) < 8:  # Limit to 8 items for table view
+                            recent.append((file, "file", path))  # Use full path
+                except:
+                    pass
+        
+        return recent
+
+    def create_recent_files_table(self, title, items, parent_layout):
+        """Create a table section for recent files."""
+        # Section title
+        title_label = QLabel(title)
+        title_label.setObjectName("homeSectionTitle")
+        parent_layout.addWidget(title_label)
+        
+        # Create table
+        from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView
+        table = QTableWidget()
+        table.setObjectName("recentFilesTable")
+        table.setColumnCount(3)
+        table.setHorizontalHeaderLabels(["Name", "Location", "Modified"])
+        table.setRowCount(len(items))
+        table.setSelectionBehavior(QTableWidget.SelectRows)
+        table.setAlternatingRowColors(True)
+        table.setShowGrid(False)
+        table.verticalHeader().setVisible(False)
+        table.setFixedHeight(min(700, len(items) * 35 + 50))  # Taller table, minimum 300px
+        
+        # Configure column widths
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)  # Name column stretches
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Location fits content
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Modified fits content
+        
+        # Populate table
+        for i, (name, _, full_path) in enumerate(items):
+            # Name
+            name_item = QTableWidgetItem(name)
+            name_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            table.setItem(i, 0, name_item)
+            
+            # Location (parent directory)
+            location = os.path.dirname(full_path)
+            location_item = QTableWidgetItem(location)
+            location_item.setFlags(Qt.ItemIsEnabled)
+            table.setItem(i, 1, location_item)
+            
+            # Modified time
+            try:
+                import time
+                mtime = os.path.getmtime(full_path)
+                modified = time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime))
+            except:
+                modified = "Unknown"
+            modified_item = QTableWidgetItem(modified)
+            modified_item.setFlags(Qt.ItemIsEnabled)
+            table.setItem(i, 2, modified_item)
+            
+            # Store full path for click handling
+            name_item.setData(Qt.UserRole, full_path)
+        
+        # Connect double click to navigate to parent and highlight file
+        table.cellDoubleClicked.connect(self.on_recent_file_clicked)
+        
+        parent_layout.addWidget(table)
+    
+    def on_recent_file_clicked(self, row, column):
+        """Handle clicking on a recent file - navigate to parent folder and highlight file."""
+        table = self.sender()
+        name_item = table.item(row, 0)
+        if name_item:
+            file_path = name_item.data(Qt.UserRole)
+            if file_path and os.path.exists(file_path):
+                # Get parent directory
+                parent_dir = os.path.dirname(file_path)
+                file_name = os.path.basename(file_path)
+                
+                # Navigate to parent directory
+                self.logic.load_directory(parent_dir)
+                
+                # After directory loads, highlight the specific file
+                # We need to do this after the table is populated
+                from PyQt5.QtCore import QTimer
+                QTimer.singleShot(100, lambda: self.highlight_file(file_name))
+    
+    def highlight_file(self, file_name):
+        """Highlight and scroll to a specific file in the main file table."""
+        # Find the file in the table
+        for row in range(self.logic.ui.file_table.rowCount()):
+            item = self.logic.ui.file_table.item(row, 0)
+            if item and item.text() == file_name:
+                # Select and scroll to the item
+                self.logic.ui.file_table.selectRow(row)
+                self.logic.ui.file_table.scrollToItem(item)
+                break
+
 class FileManagerUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"AI File Manager")
-        self.setWindowIcon(QIcon("icon.png"))
+        self.setWindowIcon(QIcon("icons/icon.png"))
         self.setGeometry(100, 100, 1200, 700)
         self.setStyleSheet(self.load_styles())
 
@@ -50,6 +248,9 @@ class FileManagerUI(QMainWindow):
 
         # Main file area
         self.create_main_area()
+        
+        # Create home view
+        self.home_view = HomeView(self.logic)
 
         # Add content to main layout
         self.main_layout.addWidget(self.content_widget)
@@ -76,21 +277,20 @@ class FileManagerUI(QMainWindow):
         nav_layout.setContentsMargins(0, 0, 0, 0)
         nav_layout.setSpacing(5)
 
-        self.back_button = QPushButton("◀")
-        self.back_button.setObjectName("navButton")
-        self.forward_button = QPushButton("▶")
-        self.forward_button.setObjectName("navButton")
-        self.refresh_button = QPushButton("🔄")
-        self.refresh_button.setObjectName("navButton")
-        self.home_button = QPushButton("🏠")
-        self.home_button.setObjectName("navButton")
-        self.home_button.clicked.connect(lambda: self.logic.load_directory(self.logic.home_path))
+        # Refresh and Home buttons using local vars
+        refresh_btn = QPushButton()
+        refresh_btn.setObjectName("navButton")
+        refresh_btn.setIcon(QIcon("icons/reload.svg"))
+        refresh_btn.setIconSize(QSize(24, 24))
+        refresh_btn.clicked.connect(lambda: self.logic.load_directory(self.logic.current_path))
+        nav_layout.addWidget(refresh_btn)
 
-        nav_layout.addWidget(self.back_button)
-        nav_layout.addWidget(self.forward_button)
-        nav_layout.addWidget(self.refresh_button)
-        self.refresh_button.clicked.connect(lambda: self.logic.load_directory(self.logic.current_path))
-        nav_layout.addWidget(self.home_button)
+        home_btn = QPushButton()
+        home_btn.setObjectName("navButton")
+        home_btn.setIcon(QIcon("icons/home.svg"))
+        home_btn.setIconSize(QSize(24, 24))
+        home_btn.clicked.connect(lambda: self.logic.load_directory(self.logic.home_path))
+        nav_layout.addWidget(home_btn)
 
         # Breadcrumb navigation
         self.breadcrumb_widget = QWidget()
@@ -134,11 +334,11 @@ class FileManagerUI(QMainWindow):
         sidebar_layout.addWidget(quick_label)
 
         # Add sidebar buttons
-        self.add_sidebar_button("Home", "🏠", self.logic.home_path, sidebar_layout)
-        self.add_sidebar_button("Downloads", "⬇", self.logic.downloads_path, sidebar_layout)
-        self.add_sidebar_button("Documents", "📄", self.logic.documents_path, sidebar_layout)
-        self.add_sidebar_button("Pictures", "🖼", self.logic.pictures_path, sidebar_layout)
-        self.add_sidebar_button("Music", "🎵", self.logic.music_path, sidebar_layout)
+        self.add_sidebar_button("Home", "home", self.logic.home_path, sidebar_layout)
+        self.add_sidebar_button("Downloads", "downloads", self.logic.downloads_path, sidebar_layout)
+        self.add_sidebar_button("Documents", "documents", self.logic.documents_path, sidebar_layout)
+        self.add_sidebar_button("Pictures", "pictures", self.logic.pictures_path, sidebar_layout)
+        self.add_sidebar_button("Music", "music", self.logic.music_path, sidebar_layout)
 
         sidebar_layout.addStretch()
         self.content_layout.addWidget(self.sidebar)
@@ -195,6 +395,28 @@ class FileManagerUI(QMainWindow):
 
         main_area_layout.addWidget(self.content_splitter)
         self.content_layout.addWidget(self.main_area)
+        
+    def show_home_view(self):
+        """Show the home view and hide the file table."""
+        # Remove main area if it's currently shown
+        if self.main_area.parent():
+            self.content_layout.removeWidget(self.main_area)
+            self.main_area.hide()
+        
+        # Add and show home view
+        self.content_layout.addWidget(self.home_view)
+        self.home_view.show()
+    
+    def show_file_view(self):
+        """Show the file table and hide the home view."""
+        # Remove home view if it's currently shown
+        if self.home_view.parent():
+            self.content_layout.removeWidget(self.home_view)
+            self.home_view.hide()
+        
+        # Add and show main area
+        self.content_layout.addWidget(self.main_area)
+        self.main_area.show()
 
     def setup_preferences(self):
         """Initialize settings and preferences."""
@@ -207,9 +429,11 @@ class FileManagerUI(QMainWindow):
         self.preview_visible = self.settings.value("preview_visible", True, type=bool)
         self.content_splitter.widget(1).setVisible(self.preview_visible)
 
-    def add_sidebar_button(self, name, icon_text, path, layout):
+    def add_sidebar_button(self, name, icon_filename, path, layout):
         """Add a button to the sidebar."""
-        button = QPushButton(f"{icon_text} {name}")
+        button = QPushButton(name)
+        button.setIcon(QIcon(f"icons/{icon_filename}.svg"))
+        button.setIconSize(QSize(24, 24))
         button.setObjectName("sidebarButton")
         button.clicked.connect(lambda: self.logic.load_directory(path))
         layout.addWidget(button)
@@ -576,6 +800,71 @@ class FileManagerUI(QMainWindow):
             max-height: 40px;
         }
         QPushButton#menuButton:hover {
+            background-color: #f8f9fa;
+        }
+          /* Home View Styling */
+        QWidget#homeView {
+            background-color: #ffffff;
+        }
+        
+        QWidget#homeContent {
+            background-color: #ffffff;
+        }
+        
+        QScrollArea#homeScrollArea {
+            background-color: #ffffff;
+            border: none;
+        }
+        
+        QLabel#homeSectionTitle {
+            color: #202124;
+            font-size: 24px;
+            font-weight: 400;
+            margin-bottom: 16px;
+            padding-left: 8px;
+        }
+        
+        QPushButton#homeIconButton {
+            background-color: #ffffff;
+            border: 1px solid #dadce0;
+            border-radius: 12px;
+            color: #202124;
+            font-size: 14px;
+            font-weight: 400;
+            text-align: center;
+            padding: 12px 8px;
+        }
+        QPushButton#homeIconButton:hover {
+            background-color: #f8f9fa;
+            border-color: #c4c7c5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }        QPushButton#homeIconButton:pressed {
+            background-color: #f1f3f4;
+        }
+        
+        /* Recent Files Table */
+        QTableWidget#recentFilesTable {
+            background-color: #ffffff;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            gridline-color: #f0f0f0;
+            selection-background-color: #e8f0fe;
+            alternate-background-color: #fafbfc;
+            margin-bottom: 16px;
+        }
+        
+        QTableWidget#recentFilesTable::item {
+            border-bottom: 1px solid #f0f0f0;
+            padding: 8px;
+            color: #202124;
+        }
+        
+        QTableWidget#recentFilesTable::item:selected {
+            background-color: #e8f0fe;
+            color: #1a73e8;
+        }
+        
+        QTableWidget#recentFilesTable::item:hover {
             background-color: #f8f9fa;
         }
         
