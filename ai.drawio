@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e">
     <diagram id="IkwelM8Yc7URkZ2F9Y2m" name="Page-1">
-        <mxGraphModel dx="1088" dy="400" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+        <mxGraphModel dx="581" dy="382" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -10,7 +10,7 @@
                 <mxCell id="3" value="Input" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
                     <mxGeometry x="200" y="70" width="120" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="5" value="Features:&lt;br&gt;&lt;br&gt;automaticle input&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;find items&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;structure things&lt;/div&gt;" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="5" value="Features:&lt;br&gt;&lt;br&gt;automaticle input&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;find items&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0); background-color: transparent;&quot;&gt;re&lt;/span&gt;structure things&lt;/div&gt;" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
                     <mxGeometry x="520" y="70" width="250" height="160" as="geometry"/>
                 </mxCell>
                 <mxCell id="9" value="" style="edgeStyle=none;html=1;" edge="1" parent="1" source="6" target="8">
@@ -35,7 +35,7 @@
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="8" value="read file&lt;br&gt;(first name)" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="8" value="read file&lt;br&gt;(file name)" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
                     <mxGeometry x="200" y="350" width="120" height="60" as="geometry"/>
                 </mxCell>
                 <mxCell id="10" value="Ask the user&lt;div&gt;/&lt;/div&gt;&lt;div&gt;Prompt&lt;/div&gt;" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
@@ -79,7 +79,7 @@
                 <mxCell id="18" value="Ask ai which folder to go in or if&amp;nbsp;right folder" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
                     <mxGeometry x="480" y="720" width="120" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="20" value="place file" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="20" value="Ask Use&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;r&lt;/span&gt;" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
                     <mxGeometry x="340" y="860" width="120" height="60" as="geometry"/>
                 </mxCell>
                 <mxCell id="28" value="" style="edgeStyle=none;html=1;" edge="1" parent="1" source="26" target="27">
@@ -88,7 +88,7 @@
                 <mxCell id="26" value="Find" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
                     <mxGeometry x="900" y="70" width="120" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="30" value="" style="edgeStyle=none;html=1;" edge="1" parent="1" source="27" target="29">
+                <mxCell id="48" value="" style="edgeStyle=none;html=1;" edge="1" parent="1" source="27" target="47">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="27" value="give&amp;nbsp;rought overview of the main folders" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
@@ -112,8 +112,8 @@
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="1040" y="520" as="targetPoint"/>
                         <Array as="points">
-                            <mxPoint x="1000" y="640"/>
-                            <mxPoint x="1050" y="640"/>
+                            <mxPoint x="1000" y="600"/>
+                            <mxPoint x="1050" y="600"/>
                             <mxPoint x="1050" y="520"/>
                         </Array>
                     </mxGeometry>
@@ -123,16 +123,17 @@
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="41" style="edgeStyle=none;html=1;entryX=0;entryY=0.142;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="31" target="29">
+                <mxCell id="41" style="edgeStyle=none;html=1;" edge="1" parent="1" source="31">
                     <mxGeometry relative="1" as="geometry">
-                        <mxPoint x="880" y="360" as="targetPoint"/>
+                        <mxPoint x="900" y="360" as="targetPoint"/>
                         <Array as="points">
                             <mxPoint x="810" y="520"/>
                             <mxPoint x="810" y="360"/>
+                            <mxPoint x="890" y="360"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="42" value="no further places?" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="41">
+                <mxCell id="42" value="no further paths?" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="41">
                     <mxGeometry x="0.0054" y="8" relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
@@ -142,7 +143,7 @@
                 </mxCell>
                 <mxCell id="43" style="edgeStyle=none;html=1;" edge="1" parent="1" source="35">
                     <mxGeometry relative="1" as="geometry">
-                        <mxPoint x="1050" y="630" as="targetPoint"/>
+                        <mxPoint x="1050" y="580" as="targetPoint"/>
                         <Array as="points">
                             <mxPoint x="1050" y="750"/>
                         </Array>
@@ -155,6 +156,35 @@
                 </mxCell>
                 <mxCell id="35" value="Ask user" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
                     <mxGeometry x="900" y="720" width="120" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="49" style="edgeStyle=none;html=1;" edge="1" parent="1" source="47" target="29">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="320" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="1190" y="380"/>
+                            <mxPoint x="1080" y="380"/>
+                            <mxPoint x="1080" y="320"/>
+                            <mxPoint x="960" y="320"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="52" value="" style="edgeStyle=none;html=1;" edge="1" parent="1" source="47" target="51">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="47" value="Cash some of the folde&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;rs and when&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;they we&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;re chashed&lt;/span&gt;.&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#000000&quot;&gt;Fo&lt;/font&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;r eve&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;ry folde&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;r check fo&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;r last change&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;and if it is late&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0); background-color: transparent;&quot;&gt;r then the chashed ve&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0); background-color: transparent;&quot;&gt;rsion.&lt;br&gt;Also only cash the st&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0); background-color: transparent;&quot;&gt;ructu&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0); background-color: transparent;&quot;&gt;re&lt;/span&gt;&lt;/div&gt;" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="1130" y="160" width="120" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="51" value="Idea:&lt;br&gt;&lt;br&gt;&lt;div&gt;send some of the filenames in the folde&lt;span style=&quot;color: rgb(0, 0, 0); background-color: transparent;&quot;&gt;r&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0); background-color: transparent;&quot;&gt;&amp;nbsp;too.&lt;/span&gt;&lt;/div&gt;" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="1330" y="160" width="120" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="85" value="" style="edgeStyle=none;html=1;" edge="1" parent="1" source="83" target="84">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="83" value="&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;rest&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;ructu&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;re&lt;/span&gt;" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="1400" y="800" width="120" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="84" value="Get sub folde&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;rs and file-names (only eve&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;ry 2nd one and ma&lt;/span&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;)&lt;/span&gt;" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="1400" y="940" width="120" height="60" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
