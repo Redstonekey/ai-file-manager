@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (
     QLabel, QWidget, QSplitter, QFrame, QHeaderView, QMenu, QAction, QInputDialog, QMessageBox, QLineEdit,
     QProgressDialog, QFileDialog, QAbstractItemView, QDialog, QCheckBox, QDialogButtonBox, QGridLayout, QScrollArea
 )
-from PyQt5.QtCore import Qt, QPoint, QSize, QSettings
+from PyQt5.QtCore import Qt, QPoint, QSize, QSettings, QMimeData
 from PyQt5.QtGui import QIcon, QCursor, QPixmap
 import os
 import time
@@ -306,12 +306,23 @@ class FileManagerUI(QMainWindow):
         self.search_bar.textChanged.connect(self.filter_files)
 
         # Menu button
-        # Menu button
         self.menu_button = QPushButton()
         self.menu_button.setObjectName("menuButton")
         self.menu_button.setIcon(QIcon("icons/three-point.svg"))
         self.menu_button.setIconSize(QSize(20, 20))
         self.menu_button.clicked.connect(self.show_menu)
+
+        # Add AI Organize icon button
+        self.ai_btn = QPushButton()
+        self.ai_btn.setObjectName("aiButton")
+        self.ai_btn.setIcon(QIcon("icons/ai.svg"))
+        self.ai_btn.setIconSize(QSize(24, 24))
+        self.ai_btn.setToolTip("Click or drop a file here for AI organize")
+        self.ai_btn.clicked.connect(self.ai_organize_selected)
+        self.ai_btn.setAcceptDrops(True)
+        self.ai_btn.dragEnterEvent = self.ai_btn_drag_enter
+        self.ai_btn.dropEvent = self.ai_btn_drop
+        toolbar_layout.addWidget(self.ai_btn)
 
         # Add to toolbar
         toolbar_layout.addWidget(nav_container)
@@ -1127,6 +1138,41 @@ class FileManagerUI(QMainWindow):
         else:
             event.ignore()
 
+    def ai_btn_drag_enter(self, event):
+        """Allow dragging of files onto AI button."""
+        mime = event.mimeData()
+        if mime.hasUrls() and len(mime.urls()) == 1 and mime.urls()[0].isLocalFile():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def ai_btn_drop(self, event):
+        """Handle file drop onto AI button and organize via AI."""
+        mime = event.mimeData()
+        if mime.hasUrls():
+            urls = mime.urls()
+            file_path = urls[0].toLocalFile()
+            if os.path.isfile(file_path):
+                # Trigger AI organization for dropped file
+                suggested = self.logic.ai_organize_file(file_path)
+                if not suggested:
+                    QMessageBox.information(self, "AI Organize", "No suggestion could be made or AI feature is disabled.")
+                else:
+                    reply = QMessageBox.question(self, "AI Organize", f"AI suggests moving the file to:\n{suggested}\nProceed?", QMessageBox.Yes | QMessageBox.No)
+                    if reply == QMessageBox.Yes:
+                        try:
+                            os.makedirs(os.path.dirname(suggested), exist_ok=True)
+                            shutil.move(file_path, suggested)
+                            QMessageBox.information(self, "AI Organize", "File moved successfully.")
+                            self.logic.load_directory(self.logic.current_path)
+                        except Exception as e:
+                            QMessageBox.critical(self, "AI Organize", f"Error moving file: {e}")
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+        else:
+            event.ignore()
+
     def filter_files(self, text):
         """Filter files based on search text."""
         for row in range(self.file_table.rowCount()):
@@ -1178,3 +1224,37 @@ class FileManagerUI(QMainWindow):
         self.preview_visible = checked
         self.content_splitter.widget(1).setVisible(checked)
         self.settings.setValue("preview_visible", checked)
+
+    def ai_organize_selected(self):
+        """Trigger AI-based file organization for the selected file."""
+        # Get selected file
+        selected_items = self.file_table.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "AI Organize", "Please select a file to organize.")
+            return
+        # Use first selected row
+        row = selected_items[0].row()
+        name_item = self.file_table.item(row, 0)
+        if not name_item:
+            return
+        file_name = name_item.text()
+        full_path = os.path.join(self.logic.current_path, file_name)
+        if not os.path.isfile(full_path):
+            QMessageBox.warning(self, "AI Organize", "Selected item is not a file.")
+            return
+        # Call AI logic
+        suggested = self.logic.ai_organize_file(full_path)
+        if not suggested:
+            QMessageBox.information(self, "AI Organize", "No suggestion could be made or AI feature is disabled.")
+            return
+        # Ask to move file
+        reply = QMessageBox.question(self, "AI Organize", f"AI suggests moving the file to:\n{suggested}\nProceed?", QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            try:
+                os.makedirs(os.path.dirname(suggested), exist_ok=True)
+                shutil.move(full_path, suggested)
+                QMessageBox.information(self, "AI Organize", "File moved successfully.")
+                # Reload directory
+                self.logic.load_directory(self.logic.current_path)
+            except Exception as e:
+                QMessageBox.critical(self, "AI Organize", f"Error moving file: {e}")

@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import QTableWidgetItem
 from PyQt5.QtCore import QDir, QDateTime, Qt, QFile, QSettings
 from PyQt5.QtGui import QColor
 import string  # for drive enumeration
+from ai.ai_organize import AIFileOrganizer
 
 
 class FileManagerLogic:
@@ -27,6 +28,14 @@ class FileManagerLogic:
         so = self.settings.value("sort_order", None)
         self.sort_column = int(sc) if sc is not None else None
         self.sort_order = int(so) if so is not None else None
+
+        # Setup AI organizer
+        api_key = "AIzaSyCw4U0MHSGJBOrK0fA9aGzQwokdg0dbOhQ"
+        if api_key:
+            self.ai_organizer = AIFileOrganizer(api_key)
+        else:
+            self.ai_organizer = None
+            print("Warning: GEMINI_API_KEY not set. AI features disabled.")
 
     def load_directory(self, path):
         """Load the contents of a directory into the table."""
@@ -173,3 +182,9 @@ class FileManagerLogic:
         self.show_hidden = not self.show_hidden
         self.settings.setValue("show_hidden", self.show_hidden)
         self.load_directory(self.current_path)
+
+    def ai_organize_file(self, file_path):
+        """Use AI to suggest file organization."""
+        if not self.ai_organizer:
+            return None
+        return self.ai_organizer.organize_file(file_path, start_directory=self.current_path)
